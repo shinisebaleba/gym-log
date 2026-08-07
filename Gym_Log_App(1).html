@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>GYM LOG</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#111827;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+.app{max-width:680px;margin:auto;padding:16px 12px 90px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+h1{margin:0;font-size:25px}.sub,.unit,.small{color:#6b7280;font-size:12px}
+button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:11px 14px;font-weight:800}
+.controls,.exercise,.history{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;font-size:12px;color:#6b7280;font-weight:700;margin-bottom:5px}
+input,select{width:100%;border:1px solid #d1d5db;border-radius:10px;padding:10px;text-align:center}
+.group{font-size:13px;color:#4b5563;font-weight:800;text-transform:uppercase;letter-spacing:.07em;margin:18px 4px 8px}
+.exercise-title{display:flex;justify-content:space-between;font-weight:800;margin-bottom:10px}
+.series{display:grid;grid-template-columns:38px 1fr 1fr;gap:7px;align-items:center;margin-top:7px}.s{text-align:center;color:#6b7280;font-size:12px;font-weight:800}
+.th{font-size:11px;color:#6b7280;text-align:center}.bottom{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.primary{background:#111827;color:white}.secondary{background:#e5e7eb}.history{display:none}
+</style></head>
+<body><div class="app">
+<header><div><h1>GYM LOG</h1><div class="sub">Registro de entrenamiento</div></div><button id="hist">↺</button></header>
+<div class="controls"><div class="grid"><div><label>FECHA</label><input id="date" type="date"></div><div><label>RUTINA</label><select id="routine"><option value="A">Día A</option><option value="B">Día B</option><option value="C">Día C</option></select></div></div></div>
+<main id="workout"></main>
+<div class="history" id="history"><b>Sesiones guardadas</b><div id="historyList"></div></div>
+</div>
+<div class="bottom"><button class="secondary" id="export">Exportar CSV</button><button class="primary" id="save">Guardar sesión</button></div>
+<script>
+const R={
+A:[["Pecho",["Press inclinado","Peck deck","Chest press"]],["Tríceps",["Extensión de tríceps","Press de tríceps"]],["Hombro",["Vuelos laterales","Vuelo frontal","Hombro trasero","Press militar"]]],
+B:[["Espalda",["Jalón al pecho","Remo","Martillo"]],["Brazo",["Bícep"]],["Antebrazo",["Antebrazo"]]],
+C:[["Pierna",["Abductor","Aductor","Leg curl","Leg extension","Prensa","Hip thrust"]]]
+};
+const units={}; const KEY="gymLog_v1"; const $=id=>document.getElementById(id);
+function sessions(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
+function prev(r){let x=sessions().filter(s=>s.routine==r).sort((a,b)=>b.date.localeCompare(a.date))[0],o={};if(x)x.records.forEach(v=>(o[v.exercise]??=[])[v.serie-1]=v);return o}
+function render(){
+let r=$("routine").value,p=prev(r);$("workout").innerHTML="";
+R[r].forEach(g=>{let sec=document.createElement("section");sec.innerHTML='<div class="group">'+g[0]+"</div>";
+g[1].forEach(ex=>{let c=document.createElement("div");c.className="exercise";c.innerHTML='<div class="exercise-title"><span>'+ex+'</span><span class="unit">'+(units[ex]||"unidad pendiente")+'</span></div><div class="series"><div></div><div class="th">REPS</div><div class="th">PESO</div></div>';
+for(let i=1;i<=4;i++){let v=p[ex]?.[i-1]||{};let row=document.createElement("div");row.className="series";row.innerHTML='<div class="s">S'+i+'</div><input class="reps" type="number" inputmode="numeric" min="0" step="1" placeholder="8" value="'+(v.reps??"")+'"><input class="weight" type="number" inputmode="decimal" min="0" step="0.01" placeholder="—" value="'+(v.weight??"")+'">';row.dataset.exercise=ex;row.dataset.serie=i;c.appendChild(row)}sec.appendChild(c)});$("workout").appendChild(sec)})
+}
+function collect(){let rec=[],date=$("date").value,routine=$("routine").value;document.querySelectorAll(".series[data-exercise]").forEach(row=>{let a=row.querySelector(".reps"),b=row.querySelector(".weight");if(a.value!==""||b.value!=="")rec.push({date,routine,exercise:row.dataset.exercise,serie:+row.dataset.serie,reps:a.value===""?"":+a.value,weight:b.value===""?"":+b.value,unit:units[row.dataset.exercise]||""})});return{date,routine,records:rec}}
+$("save").onclick=()=>{let s=collect();if(!s.records.length)return alert("No hay datos para guardar.");let all=sessions().filter(x=>!(x.date==s.date&&x.routine==s.routine));all.push(s);localStorage.setItem(KEY,JSON.stringify(all));alert("Sesión guardada en este dispositivo.")};
+$("export").onclick=()=>{let rows=[["Fecha","Rutina","Ejercicio","Serie","Repeticiones","Peso","Unidad"]];sessions().forEach(s=>s.records.forEach(r=>rows.push([r.date,r.routine,r.exercise,r.serie,r.reps,r.weight,r.unit])));if(rows.length==1)return alert("No hay sesiones guardadas.");let csv="\ufeff"+rows.map(x=>x.map(v=>'"'+String(v??"").replaceAll('"','""')+'"').join(",")).join("\r\n"),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="gym_log.csv";a.click()};
+$("hist").onclick=()=>{let h=$("history"),list=$("historyList"),s=sessions().sort((a,b)=>b.date.localeCompare(a.date));list.innerHTML=s.map(x=>'<p><b>'+x.date+' · Día '+x.routine+'</b><br><span class="small">'+x.records.length+' registros</span></p>').join("")||'<p class="small">No hay sesiones.</p>';h.style.display=h.style.display=="block"?"none":"block"};
+let d=new Date();d=new Date(d-d.getTimezoneOffset()*60000);$("date").value=d.toISOString().slice(0,10);$("routine").onchange=render;$("date").onchange=render;render();
+</script></body></html>
