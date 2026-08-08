@@ -98,7 +98,14 @@ input::placeholder{color:#565b60}
 .reps-block .exercise-title span:first-child{color:var(--accent)}
 .s{text-align:center;color:var(--muted);font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace}
 .series input{font-family:'JetBrains Mono',monospace;padding:10px 4px}
-.series input.filled{border-color:var(--accent-dim);background:#1c2418}
+.series input.touched.filled{border-color:var(--accent-dim);background:#1c2418}
+.series input:not(.touched){color:var(--muted)}
+.exercise.confirmed{border-color:var(--accent);background:#141c0f}
+.confirm-btn-wide{width:100%;margin-top:12px;background:transparent;border:1px solid var(--line);
+  color:var(--muted);border-radius:10px;padding:6px 10px;font-size:14px;font-weight:700;
+  cursor:pointer;line-height:1}
+.confirm-btn-wide.on{border-color:var(--accent);color:var(--accent);background:rgba(200,255,77,.08)}
+.confirm-btn-wide:active{transform:scale(.98)}
 .delta{font-size:10px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700}
 .delta.up{color:var(--accent)}.delta.down{color:var(--danger)}.delta.same{color:var(--muted)}
 
@@ -365,6 +372,11 @@ function render(){
           +'<div class="delta"></div>';
         c.appendChild(row);
       }
+      c.dataset.exercise=ex;
+      let confirmBtn=document.createElement("button");
+      confirmBtn.type="button";confirmBtn.className="confirm-btn-wide";confirmBtn.dataset.exercise=ex;
+      confirmBtn.textContent="✓";
+      c.appendChild(confirmBtn);
       sec.appendChild(c);
     });
     $("workout").appendChild(sec);
@@ -374,6 +386,18 @@ function render(){
       let next=btn.dataset.unit==="kg"?"lb":"kg";
       btn.dataset.unit=next;btn.textContent=next.toUpperCase();
       units[btn.dataset.exercise]=next;
+    };
+  });
+  document.querySelectorAll(".confirm-btn-wide").forEach(btn=>{
+    btn.onclick=()=>{
+      let card=btn.closest(".exercise"),on=!btn.classList.contains("on");
+      btn.classList.toggle("on",on);
+      card.classList.toggle("confirmed",on);
+      card.querySelectorAll(".series input").forEach(inp=>{
+        inp.classList.toggle("touched",on);
+        inp.classList.toggle("filled",inp.value!=="");
+      });
+      updateVolume();
     };
   });
   document.querySelectorAll(".series input").forEach(inp=>{
