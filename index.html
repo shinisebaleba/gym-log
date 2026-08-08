@@ -242,6 +242,10 @@ function exerciseListFor(routine){
 
 // convierte una sesión (registros por ejercicio/serie) al formato ancho:
 // una fila por serie, con pares Peso/Reps por ejercicio en orden fijo
+const KG_PER_LB=0.45359237;
+function toKg(weight,unit){return unit==="lb"?+(weight*KG_PER_LB).toFixed(2):+weight}
+function toLb(weight,unit){return unit==="kg"?+(weight/KG_PER_LB).toFixed(2):+weight}
+
 function buildWideRows(session){
   let list=exerciseListFor(session.routine);
   let bySerie={};
@@ -251,9 +255,14 @@ function buildWideRows(session){
     let row=[session.date,i];
     list.forEach(ex=>{
       let rec=bySerie[i]?.[ex];
-      row.push(rec?rec.weight??"":"");
+      if(rec&&rec.weight!==""){
+        let u=rec.unit||"kg";
+        row.push(toKg(rec.weight,u));
+        row.push(toLb(rec.weight,u));
+      } else {
+        row.push("");row.push("");
+      }
       row.push(rec?rec.reps??"":"");
-      row.push(rec?rec.unit??"":"");
     });
     if(bySerie[i])rows.push(row);
   }
@@ -497,7 +506,7 @@ $("addExercise").onclick=()=>{
 $("copyHeaders").onclick=()=>{
   let r=$("routine").value;
   let cols=["Fecha","Serie"];
-  exerciseListFor(r).forEach(ex=>{cols.push(ex+" - Peso");cols.push(ex+" - Reps");cols.push(ex+" - Unidad")});
+  exerciseListFor(r).forEach(ex=>{cols.push(ex+" - Peso (kg)");cols.push(ex+" - Peso (lb)");cols.push(ex+" - Reps")});
   let text=cols.join("\t");
   navigator.clipboard?.writeText(text).then(()=>toast("Encabezado copiado — pégalo en A1 de Registro_"+r))
     .catch(()=>{prompt("Copia manualmente este encabezado:",text)});
