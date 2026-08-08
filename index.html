@@ -84,9 +84,10 @@ input::placeholder{color:#565b60}
 .exercise-title span:first-child{font-weight:700;font-size:14.5px}
 .unit-tag{font-size:10px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);
   border-radius:99px;padding:3px 9px;white-space:nowrap;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-.unit-select{width:auto;background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
-  border-radius:99px;padding:4px 22px 4px 10px;font-size:11px;font-weight:700;text-align:center;
-  font-family:'JetBrains Mono',monospace;background-position:calc(100% - 8px) 50%,calc(100% - 4px) 50%}
+.unit-toggle{width:44px;background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
+  border-radius:99px;padding:5px 0;font-size:11px;font-weight:700;text-align:center;
+  font-family:'JetBrains Mono',monospace;cursor:pointer}
+.unit-toggle:active{transform:scale(.94)}
 
 .series-head{display:grid;grid-template-columns:30px 1fr 1fr 22px;gap:8px;padding:0 2px 6px}
 .series-head span{font-size:10px;color:var(--muted);text-align:center;font-weight:700;
@@ -350,10 +351,7 @@ function render(){
       let c=document.createElement("div");c.className="exercise";
       let u=lastUnit(p,ex);units[ex]=u;
       c.innerHTML='<div class="exercise-title"><span>'+ex+'</span>'
-        +'<select class="unit-select" data-exercise="'+ex+'">'
-        +'<option value="kg"'+(u==="kg"?" selected":"")+'>KG</option>'
-        +'<option value="lb"'+(u==="lb"?" selected":"")+'>LB</option>'
-        +'</select></div>'
+        +'<button type="button" class="unit-toggle" data-exercise="'+ex+'" data-unit="'+u+'">'+u.toUpperCase()+'</button></div>'
         +'<div class="series-head"><span>SET</span><span>Reps</span><span>Peso</span><span></span></div>';
       for(let i=1;i<=4;i++){
         let v=p[ex]?.[i-1]||{};
@@ -371,8 +369,12 @@ function render(){
     });
     $("workout").appendChild(sec);
   });
-  document.querySelectorAll(".unit-select").forEach(sel=>{
-    sel.addEventListener("change",()=>{units[sel.dataset.exercise]=sel.value});
+  document.querySelectorAll(".unit-toggle").forEach(btn=>{
+    btn.onclick=()=>{
+      let next=btn.dataset.unit==="kg"?"lb":"kg";
+      btn.dataset.unit=next;btn.textContent=next.toUpperCase();
+      units[btn.dataset.exercise]=next;
+    };
   });
   document.querySelectorAll(".series input").forEach(inp=>{
     inp.classList.toggle("filled",inp.value!=="");
