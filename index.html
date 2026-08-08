@@ -20,11 +20,10 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',system-
 ::selection{background:var(--accent);color:#0d0f10}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-.app{max-width:640px;margin:auto;padding:0 14px 110px}
+.app{max-width:640px;margin:auto;padding:0 18px 110px}
 
 /* header */
-header.top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg) 82%,transparent);
-  padding:18px 0 10px;display:flex;justify-content:space-between;align-items:flex-end}
+header.top{padding:18px 0 10px;display:flex;justify-content:space-between;align-items:flex-end}
 h1{margin:0;font-family:'Bebas Neue',system-ui,sans-serif;font-size:36px;letter-spacing:.05em;line-height:1}
 .sub{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
 #hist{background:var(--surface);border:1px solid var(--line);color:var(--text);width:40px;height:40px;
@@ -32,7 +31,9 @@ h1{margin:0;font-family:'Bebas Neue',system-ui,sans-serif;font-size:36px;letter-
 #hist.active{background:var(--accent);color:#0d0f10;border-color:var(--accent)}
 
 /* volume bar - signature element */
-.volume-wrap{margin-bottom:16px}
+.volume-wrap{padding-bottom:12px;margin-bottom:4px}
+.sticky-top{position:sticky;top:0;z-index:5;background:var(--bg);padding:0 18px;margin:0 -18px;
+  box-shadow:0 12px 16px -8px var(--bg)}
 .volume-track{height:6px;background:var(--surface-2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
 .volume-fill{height:100%;background:var(--accent);width:0%;transition:width .35s ease;border-radius:99px}
 .volume-label{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;
@@ -79,6 +80,9 @@ input::placeholder{color:#565b60}
 .series-head span{font-size:10px;color:var(--muted);text-align:center;font-weight:700;
   text-transform:uppercase;letter-spacing:.06em}
 .series{display:grid;grid-template-columns:30px 1fr 1fr 22px;gap:8px;align-items:center;margin-top:7px}
+.series.weight-only,.series[data-shared="reps"],.series-head.weight-only{grid-template-columns:30px 1fr 22px}
+.reps-block{border-color:var(--accent-dim);background:#161d10}
+.reps-block .exercise-title span:first-child{color:var(--accent)}
 .s{text-align:center;color:var(--muted);font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace}
 .series input{font-family:'JetBrains Mono',monospace;padding:10px 4px}
 .series input.filled{border-color:var(--accent-dim);background:#1c2418}
@@ -117,6 +121,7 @@ button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 14px
 </style></head>
 <body><div class="app">
 
+<div class="sticky-top">
 <header class="top">
   <div><h1>GYM LOG</h1><div class="sub">Registro de entrenamiento</div></div>
   <button id="hist" aria-label="Ver historial">↺</button>
@@ -125,6 +130,7 @@ button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 14px
 <div class="volume-wrap">
   <div class="volume-track"><div class="volume-fill" id="volFill"></div></div>
   <div class="volume-label"><span>Sets completados</span><span><b id="volCount">0</b>/<span id="volTotal">0</span></span></div>
+</div>
 </div>
 
 <div class="controls">
@@ -169,7 +175,11 @@ const units={}; const KEY="gymLog_v1"; const $=id=>document.getElementById(id);
 
 function sessions(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
 function saveSessions(s){localStorage.setItem(KEY,JSON.stringify(s))}
-function prev(r){let x=sessions().filter(s=>s.routine==r).sort((a,b)=>b.date.localeCompare(a.date))[0],o={};if(x)x.records.forEach(v=>(o[v.exercise]??=[])[v.serie-1]=v);return o}
+function prev(r){
+  let x=sessions().filter(s=>s.routine==r).sort((a,b)=>b.date.localeCompare(a.date))[0],o={};
+  if(x)(x.records||[]).forEach(v=>(o[v.exercise]??=[])[v.serie-1]=v);
+  return o;
+}
 
 function toast(msg){let t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2200)}
 
@@ -178,6 +188,7 @@ function setTab(r){$("routine").value=r;document.querySelectorAll(".tab").forEac
 function render(){
   let r=$("routine").value,p=prev(r);$("workout").innerHTML="";
   if(!R[r]||!R[r].length){$("workout").innerHTML='<div class="empty">No hay ejercicios definidos para esta rutina.</div>';updateVolume();return}
+
   R[r].forEach(g=>{
     let sec=document.createElement("section");
     sec.innerHTML='<div class="group"><span class="name">'+g[0]+'</span><span class="rule"></span></div>';
@@ -189,9 +200,11 @@ function render(){
         let v=p[ex]?.[i-1]||{};
         let row=document.createElement("div");row.className="series";
         row.dataset.exercise=ex;row.dataset.serie=i;
+        let repsVal=(v.reps!==undefined&&v.reps!=="")?v.reps:8;
+        let weightVal=(v.weight!==undefined&&v.weight!=="")?String(v.weight).replace(".",","):"";
         row.innerHTML='<div class="s">S'+i+'</div>'
-          +'<input class="reps" type="number" inputmode="numeric" min="0" step="1" placeholder="'+(v.reps??"8")+'">'
-          +'<input class="weight" type="number" inputmode="decimal" min="0" step="0.01" placeholder="'+(v.weight??"—")+'">'
+          +'<input class="reps" type="number" inputmode="numeric" min="0" step="1" value="'+repsVal+'">'
+          +'<input class="weight" type="text" inputmode="decimal" placeholder="—" value="'+weightVal+'">'
           +'<div class="delta"></div>';
         c.appendChild(row);
       }
@@ -200,7 +213,14 @@ function render(){
     $("workout").appendChild(sec);
   });
   document.querySelectorAll(".series input").forEach(inp=>{
-    inp.addEventListener("input",()=>{inp.classList.toggle("filled",inp.value!=="");updateVolume()});
+    inp.classList.toggle("filled",inp.value!=="");
+    inp.addEventListener("input",()=>{
+      if(inp.classList.contains("weight")){
+        inp.value=inp.value.replace(/[^0-9,.]/g,"").replace(/\.(?=.*\.)/g,"").replace(/,(?=.*,)/g,"");
+      }
+      inp.classList.add("touched");
+      inp.classList.toggle("filled",inp.value!=="");updateVolume();
+    });
   });
   updateVolume();
 }
@@ -210,10 +230,16 @@ function updateVolume(){
   let total=rows.length,done=0;
   rows.forEach(row=>{
     let a=row.querySelector(".reps"),b=row.querySelector(".weight");
-    if(a.value!==""||b.value!=="")done++;
+    if(a.classList.contains("touched")||b.classList.contains("touched"))done++;
   });
   $("volTotal").textContent=total;$("volCount").textContent=done;
   $("volFill").style.width=(total?Math.round(done/total*100):0)+"%";
+}
+
+function toNumber(str){
+  if(str==="")return "";
+  let n=parseFloat(String(str).replace(",","."));
+  return isNaN(n)?"":n;
 }
 
 function collect(){
@@ -221,7 +247,7 @@ function collect(){
   document.querySelectorAll(".series[data-exercise]").forEach(row=>{
     let a=row.querySelector(".reps"),b=row.querySelector(".weight");
     if(a.value!==""||b.value!=="")rec.push({date,routine,exercise:row.dataset.exercise,serie:+row.dataset.serie,
-      reps:a.value===""?"":+a.value,weight:b.value===""?"":+b.value,unit:units[row.dataset.exercise]||""});
+      reps:a.value===""?"":+a.value,weight:toNumber(b.value),unit:units[row.dataset.exercise]||""});
   });
   return{date,routine,records:rec};
 }
@@ -235,8 +261,8 @@ $("save").onclick=()=>{
 };
 
 $("export").onclick=()=>{
-  let rows=[["Fecha","Rutina","Ejercicio","Serie","Repeticiones","Peso","Unidad"]];
-  sessions().forEach(s=>s.records.forEach(r=>rows.push([r.date,r.routine,r.exercise,r.serie,r.reps,r.weight,r.unit])));
+  let rows=[["Fecha","Rutina","Serie","Ejercicio","Repeticiones","Peso","Unidad"]];
+  sessions().forEach(s=>(s.records||[]).forEach(r=>rows.push([r.date,r.routine,r.serie,r.exercise,r.reps,r.weight,r.unit])));
   if(rows.length==1){toast("No hay sesiones guardadas");return}
   let csv="\ufeff"+rows.map(x=>x.map(v=>'"'+String(v??"").replaceAll('"','""')+'"').join(",")).join("\r\n");
   let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
@@ -248,7 +274,7 @@ function renderHistory(){
   if(!s.length){list.innerHTML='<div class="empty">Aún no hay sesiones guardadas.</div>';return}
   list.innerHTML=s.map((x,i)=>
     '<div class="hist-row"><div><div class="hist-main">'+x.date+' · Día '+x.routine+'</div>'
-    +'<div class="hist-sub">'+x.records.length+' registros</div></div>'
+    +'<div class="hist-sub">'+(x.records||[]).length+' registros</div></div>'
     +'<button class="hist-del" data-i="'+i+'">Borrar</button></div>'
   ).join("");
   list.querySelectorAll(".hist-del").forEach(btn=>{
