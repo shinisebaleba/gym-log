@@ -253,6 +253,7 @@ function buildWideRows(session){
       let rec=bySerie[i]?.[ex];
       row.push(rec?rec.weight??"":"");
       row.push(rec?rec.reps??"":"");
+      row.push(rec?rec.unit??"":"");
     });
     if(bySerie[i])rows.push(row);
   }
@@ -496,7 +497,7 @@ $("addExercise").onclick=()=>{
 $("copyHeaders").onclick=()=>{
   let r=$("routine").value;
   let cols=["Fecha","Serie"];
-  exerciseListFor(r).forEach(ex=>{cols.push(ex+" - Peso");cols.push(ex+" - Reps")});
+  exerciseListFor(r).forEach(ex=>{cols.push(ex+" - Peso");cols.push(ex+" - Reps");cols.push(ex+" - Unidad")});
   let text=cols.join("\t");
   navigator.clipboard?.writeText(text).then(()=>toast("Encabezado copiado — pégalo en A1 de Registro_"+r))
     .catch(()=>{prompt("Copia manualmente este encabezado:",text)});
