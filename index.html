@@ -7,6 +7,7 @@
 <title>GYM LOG</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --bg:#0d0f10; --surface:#16191b; --surface-2:#1e2225; --line:#2a2f33;
@@ -29,6 +30,11 @@ h1{margin:0;font-family:'Bebas Neue',system-ui,sans-serif;font-size:36px;letter-
 #hist{background:var(--surface);border:1px solid var(--line);color:var(--text);width:40px;height:40px;
   border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
 #hist.active{background:var(--accent);color:#0d0f10;border-color:var(--accent)}
+#gconnect{background:var(--surface);border:1px solid var(--line);color:var(--text);width:40px;height:40px;
+  border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+#gconnect.connected{background:var(--accent);color:#0d0f10;border-color:var(--accent)}
+#gconnect.syncing{animation:pulse 1s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* volume bar - signature element */
 .volume-wrap{padding-bottom:12px;margin-bottom:4px}
@@ -124,7 +130,10 @@ button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 14px
 <div class="sticky-top">
 <header class="top">
   <div><h1>GYM LOG</h1><div class="sub">Registro de entrenamiento</div></div>
-  <button id="hist" aria-label="Ver historial">↺</button>
+  <div style="display:flex;gap:8px">
+    <button id="gconnect" aria-label="Conectar Google Sheets">☁</button>
+    <button id="hist" aria-label="Ver historial">↺</button>
+  </div>
 </header>
 
 <div class="volume-wrap">
@@ -172,6 +181,92 @@ B:[["Espalda",["Jalón al pecho","Remo","Martillo"]],["Brazo",["Bícep"]],["Ante
 C:[["Pierna",["Abductor","Aductor","Leg curl","Leg extension","Prensa","Hip thrust"]]]
 };
 const units={}; const KEY="gymLog_v1"; const $=id=>document.getElementById(id);
+
+// ---- Google Sheets sync ----
+const GCFG={
+  clientId:"530370071490-npuqigm1q6bjsfon8faq80b1n9t72btb.apps.googleusercontent.com",
+  sheetId:"1stAEKsBkGniC7Y_zidEuWgNmSlK5-mQSu3iBc2iZcao",
+  scope:"https://www.googleapis.com/auth/spreadsheets"
+};
+let gTokenClient=null, gAccessToken=null;
+
+function sheetNameFor(routine){return "Registro_"+routine}
+
+function exerciseListFor(routine){
+  let list=[];
+  (R[routine]||[]).forEach(g=>g[1].forEach(ex=>list.push(ex)));
+  return list;
+}
+
+// convierte una sesión (registros por ejercicio/serie) al formato ancho:
+// una fila por serie, con pares Peso/Reps por ejercicio en orden fijo
+function buildWideRows(session){
+  let list=exerciseListFor(session.routine);
+  let bySerie={};
+  (session.records||[]).forEach(r=>{(bySerie[r.serie]??={})[r.exercise]=r});
+  let rows=[];
+  for(let i=1;i<=4;i++){
+    let row=[session.date,i];
+    list.forEach(ex=>{
+      let rec=bySerie[i]?.[ex];
+      row.push(rec?rec.weight??"":"");
+      row.push(rec?rec.reps??"":"");
+    });
+    if(bySerie[i])rows.push(row);
+  }
+  return rows;
+}
+
+function initGoogle(){
+  if(!window.google||!google.accounts){setTimeout(initGoogle,300);return}
+  gTokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:GCFG.clientId,
+    scope:GCFG.scope,
+    callback:(resp)=>{
+      if(resp.error){toast("No se pudo conectar con Google");return}
+      gAccessToken=resp.access_token;
+      sessionStorage.setItem("gToken",gAccessToken);
+      $("gconnect").classList.add("connected");
+      toast("Conectado a Google Sheets ✓");
+    }
+  });
+  let saved=sessionStorage.getItem("gToken");
+  if(saved){gAccessToken=saved;$("gconnect").classList.add("connected")}
+}
+
+$("gconnect").onclick=()=>{
+  if(!gTokenClient){toast("Google aún está cargando, espera un segundo");return}
+  gTokenClient.requestAccessToken({prompt:gAccessToken?"":"consent"});
+};
+
+async function syncToSheet(session){
+  if(!gAccessToken)return; // no conectado, no bloquea el guardado local
+  let rows=buildWideRows(session);
+  if(!rows.length)return;
+  let sheet=sheetNameFor(session.routine);
+  $("gconnect").classList.add("syncing");
+  try{
+    let res=await fetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/"+GCFG.sheetId+"/values/"+encodeURIComponent(sheet)+"!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
+      {method:"POST",headers:{Authorization:"Bearer "+gAccessToken,"Content-Type":"application/json"},
+       body:JSON.stringify({values:rows})}
+    );
+    if(res.status===401){
+      // token expirado, pide uno nuevo
+      gAccessToken=null;sessionStorage.removeItem("gToken");
+      $("gconnect").classList.remove("connected");
+      toast("Tu sesión de Google expiró, conéctate de nuevo");
+    } else if(!res.ok){
+      toast("Error al sincronizar con Sheets");
+    } else {
+      toast("Sesión guardada y sincronizada ✓");
+    }
+  }catch(e){
+    toast("Sin conexión, se guardó solo en el dispositivo");
+  }finally{
+    $("gconnect").classList.remove("syncing");
+  }
+}
 
 function sessions(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
 function saveSessions(s){localStorage.setItem(KEY,JSON.stringify(s))}
@@ -252,12 +347,13 @@ function collect(){
   return{date,routine,records:rec};
 }
 
-$("save").onclick=()=>{
+$("save").onclick=async()=>{
   let s=collect();
   if(!s.records.length){toast("No hay datos para guardar");return}
   let all=sessions().filter(x=>!(x.date==s.date&&x.routine==s.routine));
   all.push(s);saveSessions(all);
   toast("Sesión guardada ✓");
+  await syncToSheet(s);
 };
 
 $("export").onclick=()=>{
@@ -300,5 +396,6 @@ $("date").onchange=render;
 let d=new Date();d=new Date(d-d.getTimezoneOffset()*60000);
 $("date").value=d.toISOString().slice(0,10);
 setTab("A");render();
+initGoogle();
 </script>
 </body></html>
