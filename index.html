@@ -34,6 +34,9 @@ h1{margin:0;font-family:'Bebas Neue',system-ui,sans-serif;font-size:36px;letter-
   border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
 #gconnect.connected{background:var(--accent);color:#0d0f10;border-color:var(--accent)}
 #gconnect.syncing{animation:pulse 1s ease infinite}
+#manage{background:var(--surface);border:1px solid var(--line);color:var(--text);width:40px;height:40px;
+  border-radius:50%;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+#manage.active{background:var(--accent);color:#0d0f10;border-color:var(--accent)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* volume bar - signature element */
@@ -81,6 +84,9 @@ input::placeholder{color:#565b60}
 .exercise-title span:first-child{font-weight:700;font-size:14.5px}
 .unit-tag{font-size:10px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);
   border-radius:99px;padding:3px 9px;white-space:nowrap;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.unit-select{width:auto;background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
+  border-radius:99px;padding:4px 22px 4px 10px;font-size:11px;font-weight:700;text-align:center;
+  font-family:'JetBrains Mono',monospace;background-position:calc(100% - 8px) 50%,calc(100% - 4px) 50%}
 
 .series-head{display:grid;grid-template-columns:30px 1fr 1fr 22px;gap:8px;padding:0 2px 6px}
 .series-head span{font-size:10px;color:var(--muted);text-align:center;font-weight:700;
@@ -111,6 +117,19 @@ input::placeholder{color:#565b60}
 .hist-del{background:transparent;color:var(--danger);border:1px solid #3a2422;border-radius:8px;
   padding:6px 10px;font-size:11px;font-weight:700}
 
+/* manage exercises */
+.manage-warn{font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);
+  border-radius:10px;padding:8px 10px;margin:10px 0}
+.manage-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.manage-row:first-of-type{border-top:none}
+.manage-row .mname{flex:1;font-size:13px;font-weight:600}
+.manage-row .mgroup{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.mbtn{background:var(--surface-2);border:1px solid var(--line);color:var(--text);width:28px;height:28px;
+  border-radius:8px;font-size:12px;display:flex;align-items:center;justify-content:center;padding:0}
+.mbtn.del{color:var(--danger)}
+.manage-add{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.manage-add input{text-align:left}
+
 /* bottom bar */
 .bottom{position:fixed;bottom:0;left:0;right:0;background:rgba(13,15,16,.92);backdrop-filter:blur(10px);
   border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));
@@ -132,6 +151,7 @@ button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 14px
   <div><h1>GYM LOG</h1><div class="sub">Registro de entrenamiento</div></div>
   <div style="display:flex;gap:8px">
     <button id="gconnect" aria-label="Conectar Google Sheets">☁</button>
+    <button id="manage" aria-label="Gestionar ejercicios">⚙</button>
     <button id="hist" aria-label="Ver historial">↺</button>
   </div>
 </header>
@@ -165,6 +185,18 @@ button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 14px
   <div id="historyList"></div>
 </div>
 
+<div class="history" id="manageBox">
+  <b>Gestionar ejercicios · <span id="manageRoutineLabel">Día A</span></b>
+  <div class="manage-warn">⚠ Si agregas, quitas o reordenas ejercicios, debes actualizar las columnas de Google Sheets en el mismo orden para que los datos no se desalineen.</div>
+  <div id="manageList"></div>
+  <div class="manage-add">
+    <input id="newGroup" type="text" placeholder="Grupo muscular (ej. Pecho)">
+    <input id="newExercise" type="text" placeholder="Nombre del ejercicio">
+    <button class="secondary" id="addExercise">+ Agregar ejercicio</button>
+  </div>
+  <button class="secondary" id="copyHeaders" style="margin-top:10px;width:100%">Copiar encabezado para Sheets</button>
+</div>
+
 </div>
 
 <div class="bottom">
@@ -175,11 +207,21 @@ button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 14px
 <div class="toast" id="toast"></div>
 
 <script>
-const R={
+const DEFAULT_R={
 A:[["Pecho",["Press inclinado","Peck deck","Chest press"]],["Tríceps",["Extensión de tríceps","Press de tríceps"]],["Hombro",["Vuelos laterales","Vuelo frontal","Hombro trasero","Press militar"]]],
 B:[["Espalda",["Jalón al pecho","Remo","Martillo"]],["Brazo",["Bícep"]],["Antebrazo",["Antebrazo"]]],
 C:[["Pierna",["Abductor","Aductor","Leg curl","Leg extension","Prensa","Hip thrust"]]]
 };
+const EX_KEY="gymLog_exercises_v1";
+function loadExercises(){
+  try{
+    let saved=JSON.parse(localStorage.getItem(EX_KEY));
+    if(saved&&saved.A&&saved.B&&saved.C)return saved;
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_R));
+}
+function saveExercises(){localStorage.setItem(EX_KEY,JSON.stringify(R))}
+let R=loadExercises();
 const units={}; const KEY="gymLog_v1"; const $=id=>document.getElementById(id);
 
 // ---- Google Sheets sync ----
@@ -275,6 +317,11 @@ function prev(r){
   if(x)(x.records||[]).forEach(v=>(o[v.exercise]??=[])[v.serie-1]=v);
   return o;
 }
+function lastUnit(p,ex){
+  let arr=p[ex]||[];
+  for(let i=arr.length-1;i>=0;i--){if(arr[i]&&arr[i].unit)return arr[i].unit}
+  return "kg";
+}
 
 function toast(msg){let t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2200)}
 
@@ -282,14 +329,21 @@ function setTab(r){$("routine").value=r;document.querySelectorAll(".tab").forEac
 
 function render(){
   let r=$("routine").value,p=prev(r);$("workout").innerHTML="";
-  if(!R[r]||!R[r].length){$("workout").innerHTML='<div class="empty">No hay ejercicios definidos para esta rutina.</div>';updateVolume();return}
+  let hasExercises=(R[r]||[]).some(g=>g[1].length);
+  if(!hasExercises){$("workout").innerHTML='<div class="empty">No hay ejercicios definidos para esta rutina. Usa ⚙ para agregar algunos.</div>';updateVolume();return}
 
   R[r].forEach(g=>{
+    if(!g[1].length)return;
     let sec=document.createElement("section");
     sec.innerHTML='<div class="group"><span class="name">'+g[0]+'</span><span class="rule"></span></div>';
     g[1].forEach(ex=>{
       let c=document.createElement("div");c.className="exercise";
-      c.innerHTML='<div class="exercise-title"><span>'+ex+'</span><span class="unit-tag">'+(units[ex]||"unidad pendiente")+'</span></div>'
+      let u=lastUnit(p,ex);units[ex]=u;
+      c.innerHTML='<div class="exercise-title"><span>'+ex+'</span>'
+        +'<select class="unit-select" data-exercise="'+ex+'">'
+        +'<option value="kg"'+(u==="kg"?" selected":"")+'>KG</option>'
+        +'<option value="lb"'+(u==="lb"?" selected":"")+'>LB</option>'
+        +'</select></div>'
         +'<div class="series-head"><span>SET</span><span>Reps</span><span>Peso</span><span></span></div>';
       for(let i=1;i<=4;i++){
         let v=p[ex]?.[i-1]||{};
@@ -306,6 +360,9 @@ function render(){
       sec.appendChild(c);
     });
     $("workout").appendChild(sec);
+  });
+  document.querySelectorAll(".unit-select").forEach(sel=>{
+    sel.addEventListener("change",()=>{units[sel.dataset.exercise]=sel.value});
   });
   document.querySelectorAll(".series input").forEach(inp=>{
     inp.classList.toggle("filled",inp.value!=="");
@@ -387,10 +444,74 @@ $("hist").onclick=()=>{
   let h=$("history"),open=h.style.display==="block";
   h.style.display=open?"none":"block";
   $("hist").classList.toggle("active",!open);
-  if(!open)renderHistory();
+  if(!open){$("manageBox").style.display="none";$("manage").classList.remove("active");renderHistory()}
 };
 
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{setTab(t.dataset.r);render()});
+// ---- gestión de ejercicios ----
+function renderManage(){
+  let r=$("routine").value;
+  $("manageRoutineLabel").textContent="Día "+r;
+  let list=$("manageList");list.innerHTML="";
+  R[r].forEach((g,gi)=>{
+    g[1].forEach((ex,ei)=>{
+      let row=document.createElement("div");row.className="manage-row";
+      row.innerHTML='<div><div class="mname">'+ex+'</div><div class="mgroup">'+g[0]+'</div></div>'
+        +'<button class="mbtn" data-act="up" data-g="'+gi+'" data-e="'+ei+'">↑</button>'
+        +'<button class="mbtn" data-act="down" data-g="'+gi+'" data-e="'+ei+'">↓</button>'
+        +'<button class="mbtn del" data-act="del" data-g="'+gi+'" data-e="'+ei+'">🗑</button>';
+      list.appendChild(row);
+    });
+  });
+  if(!R[r].some(g=>g[1].length))list.innerHTML='<div class="empty">No hay ejercicios en esta rutina.</div>';
+  list.querySelectorAll(".mbtn").forEach(btn=>{
+    btn.onclick=()=>{
+      let gi=+btn.dataset.g,ei=+btn.dataset.e,act=btn.dataset.act;
+      let group=R[r][gi];
+      if(act==="del"){
+        if(!confirm('¿Eliminar "'+group[1][ei]+'"? Las sesiones ya guardadas con este ejercicio no se borran, pero dejará de aparecer en el formulario.'))return;
+        group[1].splice(ei,1);
+      } else if(act==="up"&&ei>0){
+        [group[1][ei-1],group[1][ei]]=[group[1][ei],group[1][ei-1]];
+      } else if(act==="down"&&ei<group[1].length-1){
+        [group[1][ei+1],group[1][ei]]=[group[1][ei],group[1][ei+1]];
+      }
+      saveExercises();renderManage();render();
+    };
+  });
+}
+
+$("addExercise").onclick=()=>{
+  let r=$("routine").value,gName=$("newGroup").value.trim(),exName=$("newExercise").value.trim();
+  if(!exName){toast("Escribe el nombre del ejercicio");return}
+  if(!gName){toast("Escribe el grupo muscular");return}
+  let group=R[r].find(g=>g[0].toLowerCase()===gName.toLowerCase());
+  if(!group){group=[gName,[]];R[r].push(group)}
+  group[1].push(exName);
+  saveExercises();
+  $("newGroup").value="";$("newExercise").value="";
+  renderManage();render();
+  toast("Ejercicio agregado ✓");
+};
+
+$("copyHeaders").onclick=()=>{
+  let r=$("routine").value;
+  let cols=["Fecha","Serie"];
+  exerciseListFor(r).forEach(ex=>{cols.push(ex+" - Peso");cols.push(ex+" - Reps")});
+  let text=cols.join("\t");
+  navigator.clipboard?.writeText(text).then(()=>toast("Encabezado copiado — pégalo en A1 de Registro_"+r))
+    .catch(()=>{prompt("Copia manualmente este encabezado:",text)});
+};
+
+$("manage").onclick=()=>{
+  let box=$("manageBox"),open=box.style.display==="block";
+  box.style.display=open?"none":"block";
+  $("manage").classList.toggle("active",!open);
+  if(!open){$("history").style.display="none";$("hist").classList.remove("active");renderManage()}
+};
+
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{setTab(t.dataset.r);render();
+  if($("manageBox").style.display==="block")renderManage();
+});
 $("date").onchange=render;
 
 let d=new Date();d=new Date(d-d.getTimezoneOffset()*60000);
