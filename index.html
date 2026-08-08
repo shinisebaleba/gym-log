@@ -42,7 +42,9 @@ h1{margin:0;font-family:'Bebas Neue',system-ui,sans-serif;font-size:36px;letter-
 /* controls */
 .controls{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
   padding:14px;margin-bottom:14px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid{display:flex;flex-direction:column;gap:14px}
+.grid>div{min-width:0}
+.grid input{width:100%;min-width:0}
 label{display:block;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;
   letter-spacing:.08em;margin-bottom:6px}
 input,select{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
@@ -56,8 +58,8 @@ input::placeholder{color:#565b60}
 /* routine tabs */
 .tabs{display:flex;gap:6px;margin-bottom:14px}
 .tab{flex:1;background:var(--surface);border:1px solid var(--line);color:var(--muted);
-  border-radius:10px;padding:10px 6px;font-weight:700;font-size:13px;text-align:center;
-  font-family:'JetBrains Mono',monospace}
+  border-radius:10px;padding:11px 6px;font-weight:700;font-size:13px;text-align:center;
+  white-space:nowrap;font-family:'JetBrains Mono',monospace}
 .tab.on{background:var(--accent);border-color:var(--accent);color:#0d0f10}
 
 /* muscle group */
