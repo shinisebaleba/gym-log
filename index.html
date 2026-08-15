@@ -231,6 +231,19 @@ function loadExercises(){
 function saveExercises(){localStorage.setItem(EX_KEY,JSON.stringify(R))}
 let R=loadExercises();
 const units={}; const KEY="gymLog_v1"; const $=id=>document.getElementById(id);
+const DRAFT_KEY="gymLog_draft_v1";
+
+function loadDraftStore(){try{return JSON.parse(localStorage.getItem(DRAFT_KEY))||{}}catch(e){return{}}}
+function saveDraft(){
+  let r=$("routine").value,date=$("date").value;
+  let store=loadDraftStore();
+  let s=collect();
+  let confirmed={};
+  document.querySelectorAll(".confirm-btn-wide.on").forEach(b=>{confirmed[b.dataset.exercise]=true});
+  store[r]={date,records:s.records,units:Object.assign({},units),confirmed};
+  localStorage.setItem(DRAFT_KEY,JSON.stringify(store));
+}
+function clearDraft(r){let store=loadDraftStore();delete store[r];localStorage.setItem(DRAFT_KEY,JSON.stringify(store))}
 
 // ---- Google Sheets sync ----
 const GCFG={
@@ -346,9 +359,14 @@ function toast(msg){let t=$("toast");t.textContent=msg;t.classList.add("show");c
 function setTab(r){$("routine").value=r;document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.r===r))}
 
 function render(){
-  let r=$("routine").value,p=prev(r);$("workout").innerHTML="";
+  let r=$("routine").value,date=$("date").value,p=prev(r);$("workout").innerHTML="";
   let hasExercises=(R[r]||[]).some(g=>g[1].length);
   if(!hasExercises){$("workout").innerHTML='<div class="empty">No hay ejercicios definidos para esta rutina. Usa ⚙ para agregar algunos.</div>';updateVolume();return}
+
+  let draftStore=loadDraftStore(),draft=draftStore[r];
+  let useDraft=draft&&draft.date===date;
+  let draftBySerie={};
+  if(useDraft)(draft.records||[]).forEach(rec=>{(draftBySerie[rec.exercise]??={})[rec.serie]=rec});
 
   R[r].forEach(g=>{
     if(!g[1].length)return;
@@ -356,27 +374,31 @@ function render(){
     sec.innerHTML='<div class="group"><span class="name">'+g[0]+'</span><span class="rule"></span></div>';
     g[1].forEach(ex=>{
       let c=document.createElement("div");c.className="exercise";
-      let u=lastUnit(p,ex);units[ex]=u;
+      let u=(useDraft&&draft.units&&draft.units[ex])||lastUnit(p,ex);units[ex]=u;
       c.innerHTML='<div class="exercise-title"><span>'+ex+'</span>'
         +'<button type="button" class="unit-toggle" data-exercise="'+ex+'" data-unit="'+u+'">'+u.toUpperCase()+'</button></div>'
         +'<div class="series-head"><span>SET</span><span>Reps</span><span>Peso</span><span></span></div>';
+      let isConfirmed=useDraft&&draft.confirmed&&draft.confirmed[ex];
       for(let i=1;i<=4;i++){
         let v=p[ex]?.[i-1]||{};
+        let d=draftBySerie[ex]?.[i];
         let row=document.createElement("div");row.className="series";
         row.dataset.exercise=ex;row.dataset.serie=i;
-        let repsVal=(v.reps!==undefined&&v.reps!=="")?v.reps:8;
-        let weightVal=(v.weight!==undefined&&v.weight!=="")?String(v.weight).replace(".",","):"";
+        let repsVal=d?d.reps:((v.reps!==undefined&&v.reps!=="")?v.reps:8);
+        let weightSource=d?d.weight:v.weight;
+        let weightVal=(weightSource!==undefined&&weightSource!=="")?String(weightSource).replace(".",","):"";
         row.innerHTML='<div class="s">S'+i+'</div>'
-          +'<input class="reps" type="number" inputmode="numeric" min="0" step="1" value="'+repsVal+'">'
-          +'<input class="weight" type="text" inputmode="decimal" placeholder="—" value="'+weightVal+'">'
+          +'<input class="reps'+(d?" touched":"")+'" type="number" inputmode="numeric" min="0" step="1" value="'+(repsVal??"")+'">'
+          +'<input class="weight'+(d?" touched":"")+'" type="text" inputmode="decimal" placeholder="—" value="'+weightVal+'">'
           +'<div class="delta"></div>';
         c.appendChild(row);
       }
       c.dataset.exercise=ex;
       let confirmBtn=document.createElement("button");
-      confirmBtn.type="button";confirmBtn.className="confirm-btn-wide";confirmBtn.dataset.exercise=ex;
+      confirmBtn.type="button";confirmBtn.className="confirm-btn-wide"+(isConfirmed?" on":"");confirmBtn.dataset.exercise=ex;
       confirmBtn.textContent="✓";
       c.appendChild(confirmBtn);
+      if(isConfirmed)c.classList.add("confirmed");
       sec.appendChild(c);
     });
     $("workout").appendChild(sec);
@@ -386,6 +408,7 @@ function render(){
       let next=btn.dataset.unit==="kg"?"lb":"kg";
       btn.dataset.unit=next;btn.textContent=next.toUpperCase();
       units[btn.dataset.exercise]=next;
+      saveDraft();
     };
   });
   document.querySelectorAll(".confirm-btn-wide").forEach(btn=>{
@@ -397,7 +420,7 @@ function render(){
         inp.classList.toggle("touched",on);
         inp.classList.toggle("filled",inp.value!=="");
       });
-      updateVolume();
+      updateVolume();saveDraft();
     };
   });
   document.querySelectorAll(".series input").forEach(inp=>{
@@ -407,7 +430,7 @@ function render(){
         inp.value=inp.value.replace(/[^0-9,.]/g,"").replace(/\.(?=.*\.)/g,"").replace(/,(?=.*,)/g,"");
       }
       inp.classList.add("touched");
-      inp.classList.toggle("filled",inp.value!=="");updateVolume();
+      inp.classList.toggle("filled",inp.value!=="");updateVolume();saveDraft();
     });
   });
   updateVolume();
@@ -445,6 +468,7 @@ $("save").onclick=async()=>{
   if(!s.records.length){toast("No hay datos para guardar");return}
   let all=sessions().filter(x=>!(x.date==s.date&&x.routine==s.routine));
   all.push(s);saveSessions(all);
+  clearDraft(s.routine);
   toast("Sesión guardada ✓");
   await syncToSheet(s);
 };
